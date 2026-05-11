@@ -24,6 +24,16 @@ const int CORRECT_SPEED_SLOW = 120;
 const int OBSTACLE_CM = 15;
 const unsigned long ECHO_TIMEOUT_US = 22000; // ~3.7 m max
 const int MAX_DISTANCE_CM = 200;
+const int SENSOR_SETTLE_DELAY_MS = 6; // Prevent HC-SR04 crosstalk between sequential pings.
+
+const int BACKUP_DELAY_SHORT_MS = 170;
+const int BACKUP_DELAY_LONG_MS = 260;
+const int TURN_DELAY_SHORT_MS = 320;
+const int TURN_DELAY_LONG_MS = 480;
+const int TURN_DELAY_TIE_SHORT_MS = 360;
+const int TURN_DELAY_TIE_LONG_MS = 520;
+const int SIDE_BLOCK_BACKUP_DELAY_MS = 120;
+const int SIDE_BLOCK_TURN_DELAY_MS = 280;
 
 uint8_t frontBlockCount = 0;
 bool preferLeft = true;
@@ -52,9 +62,9 @@ void setup() {
 
 void loop() {
   const int left = getDistanceCm(TRIG_LEFT, ECHO_LEFT);
-  delay(6);
+  delay(SENSOR_SETTLE_DELAY_MS);
   const int center = getDistanceCm(TRIG_CENTER, ECHO_CENTER);
-  delay(6);
+  delay(SENSOR_SETTLE_DELAY_MS);
   const int right = getDistanceCm(TRIG_RIGHT, ECHO_RIGHT);
 
   Serial.print("L:"); Serial.print(left);
@@ -68,17 +78,17 @@ void loop() {
     delay(40);
 
     moveBackward(TURN_SPEED);
-    delay(frontBlockCount >= 3 ? 260 : 170);
+    delay(frontBlockCount >= 3 ? BACKUP_DELAY_LONG_MS : BACKUP_DELAY_SHORT_MS);
 
     stopBot();
     delay(30);
 
     if (left > right + 2) {
       pivotLeft(TURN_SPEED);
-      delay(frontBlockCount >= 3 ? 480 : 320);
+      delay(frontBlockCount >= 3 ? TURN_DELAY_LONG_MS : TURN_DELAY_SHORT_MS);
     } else if (right > left + 2) {
       pivotRight(TURN_SPEED);
-      delay(frontBlockCount >= 3 ? 480 : 320);
+      delay(frontBlockCount >= 3 ? TURN_DELAY_LONG_MS : TURN_DELAY_SHORT_MS);
     } else {
       // Tie breaker helps avoid repeated oscillation at 90-degree traps.
       if (preferLeft) {
@@ -87,7 +97,7 @@ void loop() {
         pivotRight(TURN_SPEED);
       }
       preferLeft = !preferLeft;
-      delay(frontBlockCount >= 3 ? 520 : 360);
+      delay(frontBlockCount >= 3 ? TURN_DELAY_TIE_LONG_MS : TURN_DELAY_TIE_SHORT_MS);
     }
 
     stopBot();
@@ -99,7 +109,7 @@ void loop() {
 
   if (left <= OBSTACLE_CM && right <= OBSTACLE_CM) {
     moveBackward(TURN_SPEED);
-    delay(120);
+    delay(SIDE_BLOCK_BACKUP_DELAY_MS);
 
     if (preferLeft) {
       pivotLeft(TURN_SPEED);
@@ -107,7 +117,7 @@ void loop() {
       pivotRight(TURN_SPEED);
     }
     preferLeft = !preferLeft;
-    delay(280);
+    delay(SIDE_BLOCK_TURN_DELAY_MS);
 
     stopBot();
     delay(30);
@@ -141,7 +151,7 @@ int getDistanceCm(uint8_t trigPin, uint8_t echoPin) {
     return MAX_DISTANCE_CM;
   }
 
-  int distance = (int)(duration * 0.0343f / 2.0f);
+  int distance = (int)(duration * 0.0343f / 2.0f); // 0.0343 cm/us at ~20C.
   if (distance <= 0 || distance > MAX_DISTANCE_CM) {
     return MAX_DISTANCE_CM;
   }
